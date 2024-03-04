@@ -1,0 +1,107 @@
+---
+title: "Scraping"
+author: "Sadeq Rezai"
+date: "2023-04-22"
+output: html_document
+---
+
+###Summary of how to scrape website and analyzes data in R with example (kawasaki motorcycle's) 
+
+```{r}
+
+library(rvest)
+library(data.table)
+library(xml2)
+library(dplyr)
+
+```
+
+##1 - Make a function to get info from one link
+
+```{r}
+
+get_kavasaki_detail <- function(url) {
+  
+  motorcycle <- read_html(url)
+  
+  data_list<-list()
+  
+  data_list[["url"]]<-url
+  
+  #data_list[["Name"]]<- Display.Name
+  
+  key<- motorcycle %>% 
+    html_nodes(".sl-spec-section-2 .bold , .sl-spec-section-0 .bold") %>% 
+    html_text()
+  
+  value<- motorcycle %>% 
+    html_nodes(".sl-spec-section-2 .spec-value , .sl-spec-section-0 .spec-value") %>%
+    html_text()
+  
+  for (i in 1:length(key)) {
+    data_list[[key[i]]]<-value[i]
+  }
+  df<-data.frame(data_list)
+  return(df)
+}
+
+```
+  
+  
+##2 - Collect the all links
+
+```{r}
+###one page
+
+first<- read_html("https://www.motorcycle.com/specs/kawasaki.html?page_num=1")
+
+inner_pages<-first %>% html_nodes(".card-link") %>% html_attr("href")
+
+my_links<- paste0("https://www.motorcycle.com",inner_pages)
+
+###all pages
+
+all_links<-c()
+for (i in 1:42) {
+  t<- read_html(paste0("https://www.motorcycle.com/specs/kawasaki.html?page_num=",i))
+  my_links<-t %>% html_nodes(".card-link") %>% html_attr("href")
+  all_links<-c(all_links,my_links)
+  final_links<-paste0("https://www.motorcycle.com",all_links)
+}
+
+```
+
+##3 - Create a data frame
+
+```{r}
+
+my_list<- lapply(final_links,get_kavasaki_detail)
+kawasaki_df<-rbindlist(my_list,fill = T)
+
+###Rename and subset as you prefer
+
+names(kawasaki_df)[11]<-"Name"
+names(kawasaki_df)[3]<-"Price"
+names(kawasaki_df)[2]<-"Type"
+
+kawasaki_df = subset(kawasaki_df, select = -c(Insurance,Finance) )
+
+```
+
+##Here are some examples
+
+```{r}
+
+Top_fifty<-
+  kawasaki_df %>% 
+  select(Name,Price,Type) %>% 
+  head(50)
+
+
+top_price<-
+  Top_fifty %>% 
+  select(Name,Price) %>% 
+  arrange(Price) %>% 
+  head(10)
+
+```
